@@ -1,0 +1,31 @@
+name: Build Arduino sketch
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+    paths:
+      - "**/*.ino"
+      - ".github/workflows/build.yaml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compile sketch
+        uses: arduino/compile-sketches@v1
+        with:
+          fqbn: SparkFun:avr:promicro:cpu=16MHzatmega32U4
+          platforms: |
+            - name: SparkFun:avr
+              source-url: https://raw.githubusercontent.com/sparkfun/Arduino_Boards/main/IDE_Board_Manager/package_sparkfun_index.json
+          libraries: |
+            - name: HID-Project
+            - name: Adafruit NeoPixel
+          sketch-paths: |
+            - .
