@@ -1,1 +1,0 @@
-# Ohropax_Arduinodroid
