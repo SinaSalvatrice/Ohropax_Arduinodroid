@@ -9,7 +9,7 @@
 const uint8_t ROWS = 2;
 const uint8_t COLS = 3;
 
-// ROW->COL scan: Rows OUTPUT, Cols INPUT_PULLUP
+// ROW2COL scan: Rows OUTPUT (active HIGH), Cols INPUT (external pull-down)
 // Du sagst: ENC-BTN ist Matrix (r=0,c=2) und hängt an A0 -> colPins[2] = A0
 const uint8_t rowPins[ROWS] = {2, 3};
 const uint8_t colPins[COLS] = {4, 5, 6};   // (0,2)=A0
@@ -232,8 +232,8 @@ static int8_t encoderReadStep() {
 // MATRIX SCAN
 // =====================
 static void selectRow(uint8_t r) {
-  for (uint8_t i = 0; i < ROWS; i++) digitalWrite(rowPins[i], HIGH);
-  digitalWrite(rowPins[r], LOW);
+  for (uint8_t i = 0; i < ROWS; i++) digitalWrite(rowPins[i], LOW);
+  digitalWrite(rowPins[r], HIGH);
   delayMicroseconds(120);
 }
 
@@ -251,10 +251,10 @@ void setup() {
   Serial.begin(115200);
   while (!Serial) {}
 
-  for (uint8_t c = 0; c < COLS; c++) pinMode(colPins[c], INPUT_PULLUP);
+  for (uint8_t c = 0; c < COLS; c++) pinMode(colPins[c], INPUT);  // external pull-down resistors required
   for (uint8_t r = 0; r < ROWS; r++) {
     pinMode(rowPins[r], OUTPUT);
-    digitalWrite(rowPins[r], HIGH);
+    digitalWrite(rowPins[r], LOW);
   }
 
   encoderInit();
@@ -302,7 +302,7 @@ void loop() {
     selectRow(r);
 
     for (uint8_t c = 0; c < COLS; c++) {
-      bool reading = (digitalRead(colPins[c]) == LOW);
+      bool reading = (digitalRead(colPins[c]) == HIGH);
 
       if (reading != lastReading[r][c]) {
         lastReading[r][c] = reading;
