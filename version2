@@ -1,0 +1,798 @@
+#include <Arduino.h>
+#include <HID-Project.h>
+#include <Adafruit_NeoPixel.h>
+
+// ============================================================
+// MINI-QMK ARDUINO PAD
+// - 2x3 matrix
+// - encoder
+// - encoder button in matrix
+// - layer-based keymap
+// - QMK-style KC aliases
+// - QMK-style LAYOUT(...) macro
+// - MO(layer) and TG(layer)
+// - dark RGB breathing
+// - serial shows active row/col pins
+// ============================================================
+
+
+// ============================================================
+// CONFIG
+// ============================================================
+const uint8_t MATRIX_ROWS = 2;
+const uint8_t MATRIX_COLS = 3;
+
+// Matrix: ROW -> COL scan
+const uint8_t rowPins[MATRIX_ROWS] = {2, 3};
+const uint8_t colPins[MATRIX_COLS] = {6, 5, 4};
+
+// Encoder
+const uint8_t ENC_A = 10;
+const uint8_t ENC_B = 14;
+
+// Encoder button position in matrix
+const uint8_t ENC_BTN_ROW = 0;
+const uint8_t ENC_BTN_COL = 2;
+
+// RGB
+const uint8_t LED_PIN = A3;
+const uint8_t LED_COUNT = 6;
+
+// Timing
+const uint16_t MATRIX_DEBOUNCE_MS = 20;
+const uint8_t ENC_STEPS_PER_DETENT = 4;
+const uint16_t LED_UPDATE_MS = 20;
+
+// RGB brightness
+const uint8_t LED_BRIGHTNESS_DEFAULT = 18;
+const uint8_t LED_BRIGHTNESS_MIN = 0;
+const uint8_t LED_BRIGHTNESS_MAX = 100;
+const uint8_t LED_BRIGHTNESS_STEP = 4;
+
+
+// ============================================================
+// QMK-STYLE KEYCODE ALIASES
+// ============================================================
+#define KC_NO    0
+
+// Letters
+#define KC_A     'a'
+#define KC_B     'b'
+#define KC_C     'c'
+#define KC_D     'd'
+#define KC_E     'e'
+#define KC_F     'f'
+#define KC_G     'g'
+#define KC_H     'h'
+#define KC_I     'i'
+#define KC_J     'j'
+#define KC_K     'k'
+#define KC_L     'l'
+#define KC_M     'm'
+#define KC_N     'n'
+#define KC_O     'o'
+#define KC_P     'p'
+#define KC_Q     'q'
+#define KC_R     'r'
+#define KC_S     's'
+#define KC_T     't'
+#define KC_U     'u'
+#define KC_V     'v'
+#define KC_W     'w'
+#define KC_X     'x'
+#define KC_Y     'y'
+#define KC_Z     'z'
+
+// Numbers
+#define KC_1     '1'
+#define KC_2     '2'
+#define KC_3     '3'
+#define KC_4     '4'
+#define KC_5     '5'
+#define KC_6     '6'
+#define KC_7     '7'
+#define KC_8     '8'
+#define KC_9     '9'
+#define KC_0     '0'
+
+// Navigation
+#define KC_UP    KEY_UP_ARROW
+#define KC_DOWN  KEY_DOWN_ARROW
+#define KC_LEFT  KEY_LEFT_ARROW
+#define KC_RGHT  KEY_RIGHT_ARROW
+#define KC_PGUP  KEY_PAGE_UP
+#define KC_PGDN  KEY_PAGE_DOWN
+#define KC_HOME  KEY_HOME
+#define KC_END   KEY_END
+#define KC_INS   KEY_INSERT
+#define KC_DEL   KEY_DELETE
+
+// Basic keys
+#define KC_TAB   KEY_TAB
+#define KC_ESC   KEY_ESC
+#define KC_ENT   KEY_ENTER
+#define KC_SPC   ' '
+#define KC_BSPC  KEY_BACKSPACE
+
+// Symbols
+#define KC_MINS  KEY_MINUS
+#define KC_EQL   KEY_EQUAL
+#define KC_LBRC  KEY_LEFT_BRACE
+#define KC_RBRC  KEY_RIGHT_BRACE
+#define KC_BSLS  KEY_BACKSLASH
+#define KC_SCLN  KEY_SEMICOLON
+#define KC_QUOT  KEY_QUOTE
+#define KC_GRV   KEY_TILDE
+#define KC_COMM  KEY_COMMA
+#define KC_DOT   KEY_PERIOD
+#define KC_SLSH  KEY_SLASH
+
+// Modifiers
+#define KC_LCTL  KEY_LEFT_CTRL
+#define KC_LSFT  KEY_LEFT_SHIFT
+#define KC_LALT  KEY_LEFT_ALT
+#define KC_LGUI  KEY_LEFT_GUI
+#define KC_RCTL  KEY_RIGHT_CTRL
+#define KC_RSFT  KEY_RIGHT_SHIFT
+#define KC_RALT  KEY_RIGHT_ALT
+#define KC_RGUI  KEY_RIGHT_GUI
+
+// Function keys
+#define KC_F1    KEY_F1
+#define KC_F2    KEY_F2
+#define KC_F3    KEY_F3
+#define KC_F4    KEY_F4
+#define KC_F5    KEY_F5
+#define KC_F6    KEY_F6
+#define KC_F7    KEY_F7
+#define KC_F8    KEY_F8
+#define KC_F9    KEY_F9
+#define KC_F10   KEY_F10
+#define KC_F11   KEY_F11
+#define KC_F12   KEY_F12
+
+// Media
+#define KC_MPLY  MEDIA_PLAY_PAUSE
+#define KC_MPRV  MEDIA_PREVIOUS
+#define KC_MNXT  MEDIA_NEXT
+#define KC_VOLD  MEDIA_VOLUME_DOWN
+#define KC_VOLU  MEDIA_VOLUME_UP
+
+
+// ============================================================
+// QMK-STYLE LAYOUT MACRO
+// physical order:
+// k00 k01 k02
+// k10 k11 k12
+// ============================================================
+#define LAYOUT( \
+  k00, k01, k02, \
+  k10, k11, k12  \
+) \
+{ \
+  { k00, k01, k02 }, \
+  { k10, k11, k12 }  \
+}
+
+
+// ============================================================
+// LAYERS
+// ============================================================
+enum Layer : uint8_t {
+  L_NAV = 0,
+  L_EDIT,
+  L_MEDIA,
+  L_F,
+  L_SYM,
+  L_SYS,
+  LAYER_COUNT
+};
+
+
+// ============================================================
+// CUSTOM KEYCODES
+// ============================================================
+enum CustomKeycode : uint16_t {
+  CK_COPY = 1000,
+  CK_CUT,
+  CK_PASTE,
+  CK_UNDO,
+  CK_REDO,
+
+  CK_LED_DOWN,
+  CK_LED_UP,
+  CK_LED_MODE,
+  CK_LED_TOGGLE,
+  CK_TO_NAV
+};
+
+// Layer keycode ranges
+static const uint16_t CK_MO_BASE = 2000;
+static const uint16_t CK_TG_BASE = 2100;
+
+#define MO(layer) (CK_MO_BASE + (layer))
+#define TG(layer) (CK_TG_BASE + (layer))
+
+
+// ============================================================
+// GLOBAL STATE
+// ============================================================
+bool matrixStable[MATRIX_ROWS][MATRIX_COLS] = {{0}};
+bool matrixLastRead[MATRIX_ROWS][MATRIX_COLS] = {{0}};
+uint32_t matrixLastChange[MATRIX_ROWS][MATRIX_COLS] = {{0}};
+
+uint8_t baseLayer = L_NAV;
+int8_t moLayer = -1;
+bool tgLayerEnabled[LAYER_COUNT] = {false};
+
+bool encHold = false;
+
+uint8_t encPrevState = 0;
+int8_t encAccum = 0;
+
+bool ledAllMode = false;
+uint8_t ledBrightness = LED_BRIGHTNESS_DEFAULT;
+
+Adafruit_NeoPixel pixels(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
+
+
+// ============================================================
+// RGB LAYER COLORS
+// ============================================================
+const uint8_t layerR[LAYER_COUNT] = {
+  0,    // L_NAV   grün
+  0,    // L_EDIT  türkis
+  0,    // L_MEDIA blau
+  140,  // L_F     lila
+  180,  // L_SYM   rot
+  255   // L_SYS   orange
+};
+
+const uint8_t layerG[LAYER_COUNT] = {
+  120,  // L_NAV
+  120,  // L_EDIT
+  40,   // L_MEDIA
+  0,    // L_F
+  0,    // L_SYM
+  70    // L_SYS
+};
+
+const uint8_t layerB[LAYER_COUNT] = {
+  0,    // L_NAV
+  120,  // L_EDIT
+  140,  // L_MEDIA
+  140,  // L_F
+  0,    // L_SYM
+  0     // L_SYS
+};
+
+const uint8_t layerLedIndex[LAYER_COUNT] = {
+  0, // L_NAV   -> LED 0
+  1, // L_EDIT  -> LED 1
+  2, // L_MEDIA -> LED 2
+  3, // L_F     -> LED 3
+  4, // L_SYM   -> LED 4
+  5  // L_SYS   -> LED 5
+};
+
+
+// ============================================================
+// ENCODER TRANSITION TABLE
+// index = (prev << 2) | curr
+// ============================================================
+const int8_t encTransitionTable[16] = {
+   0, -1, +1,  0,
+  +1,  0,  0, -1,
+  -1,  0,  0, +1,
+   0, +1, -1,  0
+};
+
+
+// ============================================================
+// ACTIVE LAYER HELPERS
+// ============================================================
+bool isMomentaryKey(uint16_t keycode) {
+  return (keycode >= CK_MO_BASE) && (keycode < CK_MO_BASE + LAYER_COUNT);
+}
+
+bool isToggleKey(uint16_t keycode) {
+  return (keycode >= CK_TG_BASE) && (keycode < CK_TG_BASE + LAYER_COUNT);
+}
+
+uint8_t keycodeToLayer(uint16_t keycode) {
+  if (isMomentaryKey(keycode)) return (uint8_t)(keycode - CK_MO_BASE);
+  if (isToggleKey(keycode))    return (uint8_t)(keycode - CK_TG_BASE);
+  return L_NAV;
+}
+
+uint8_t getActiveLayer() {
+  if (moLayer >= 0) return (uint8_t)moLayer;
+
+  for (int8_t i = LAYER_COUNT - 1; i >= 0; i--) {
+    if (tgLayerEnabled[i]) return (uint8_t)i;
+  }
+
+  return baseLayer;
+}
+
+
+// ============================================================
+// KEYMAP
+// ============================================================
+const uint16_t keymaps[LAYER_COUNT][MATRIX_ROWS][MATRIX_COLS] = {
+  [L_NAV] = LAYOUT(
+    KC_UP,    KC_DOWN,   KC_LEFT,
+    KC_RGHT,  MO(L_SYS), TG(L_MEDIA)
+  ),
+
+  [L_EDIT] = LAYOUT(
+    CK_COPY, CK_CUT,   CK_PASTE,
+    CK_REDO, CK_UNDO,  KC_NO
+  ),
+
+  [L_MEDIA] = LAYOUT(
+    KC_MPLY, KC_MPRV, KC_MNXT,
+    KC_VOLD, KC_VOLU, KC_NO
+  ),
+
+  [L_F] = LAYOUT(
+    KC_F1, KC_F2, KC_F3,
+    KC_F4, KC_F5, KC_NO
+  ),
+
+  [L_SYM] = LAYOUT(
+    KC_LBRC, KC_RBRC, KC_BSLS,
+    KC_GRV,  KC_MINS, KC_NO
+  ),
+
+  [L_SYS] = LAYOUT(
+    CK_LED_DOWN,   CK_LED_UP,   CK_LED_MODE,
+    CK_LED_TOGGLE, CK_TO_NAV,   KC_NO
+  )
+};
+
+
+// ============================================================
+// HELPERS
+// ============================================================
+void debugKeyEvent(const __FlashStringHelper* kind, uint8_t layer, uint8_t r, uint8_t c, uint16_t kc) {
+  Serial.print(kind);
+  Serial.print(F(" L="));
+  Serial.print(layer);
+  Serial.print(F(" rowPin="));
+  Serial.print(rowPins[r]);
+  Serial.print(F(" colPin="));
+  Serial.print(colPins[c]);
+  Serial.print(F(" r="));
+  Serial.print(r);
+  Serial.print(F(" c="));
+  Serial.print(c);
+  Serial.print(F(" kc="));
+  Serial.println(kc);
+}
+
+void tapKey(uint8_t keycode) {
+  BootKeyboard.press(keycode);
+  delay(2);
+  BootKeyboard.release(keycode);
+}
+
+void tapCtrl(uint8_t keycode) {
+  BootKeyboard.press(KC_LCTL);
+  BootKeyboard.press(keycode);
+  delay(2);
+  BootKeyboard.release(keycode);
+  BootKeyboard.release(KC_LCTL);
+}
+
+void tapShift(uint8_t keycode) {
+  BootKeyboard.press(KC_LSFT);
+  BootKeyboard.press(keycode);
+  delay(2);
+  BootKeyboard.release(keycode);
+  BootKeyboard.release(KC_LSFT);
+}
+
+bool isMediaKey(uint16_t keycode) {
+  switch (keycode) {
+    case KC_MPLY:
+    case KC_MPRV:
+    case KC_MNXT:
+    case KC_VOLD:
+    case KC_VOLU:
+      return true;
+    default:
+      return false;
+  }
+}
+
+void clampBrightness() {
+  if (ledBrightness > LED_BRIGHTNESS_MAX) {
+    ledBrightness = LED_BRIGHTNESS_MAX;
+  }
+}
+
+
+// ============================================================
+// RGB
+// ============================================================
+uint8_t breatheValue() {
+  uint16_t t = millis() % 2000;
+  uint16_t phase = (t < 1000) ? t : (1999 - t);
+
+  uint16_t minV = ledBrightness / 5;
+  uint16_t span = ledBrightness - minV;
+  uint16_t v = minV + ((uint32_t)span * phase) / 999;
+
+  if (v > 255) v = 255;
+  return (uint8_t)v;
+}
+
+uint32_t scaledColor(uint8_t r, uint8_t g, uint8_t b, uint8_t scale) {
+  uint8_t rr = ((uint16_t)r * scale) / 255;
+  uint8_t gg = ((uint16_t)g * scale) / 255;
+  uint8_t bb = ((uint16_t)b * scale) / 255;
+  return pixels.Color(rr, gg, bb);
+}
+
+void rgb_brightness_down() {
+  if (ledBrightness >= LED_BRIGHTNESS_STEP) ledBrightness -= LED_BRIGHTNESS_STEP;
+  else ledBrightness = LED_BRIGHTNESS_MIN;
+
+  Serial.print(F("BRI="));
+  Serial.println(ledBrightness);
+}
+
+void rgb_brightness_up() {
+  if (ledBrightness <= (LED_BRIGHTNESS_MAX - LED_BRIGHTNESS_STEP)) ledBrightness += LED_BRIGHTNESS_STEP;
+  else ledBrightness = LED_BRIGHTNESS_MAX;
+
+  Serial.print(F("BRI="));
+  Serial.println(ledBrightness);
+}
+
+void rgb_toggle_mode() {
+  ledAllMode = !ledAllMode;
+  Serial.print(F("LED MODE="));
+  Serial.println(ledAllMode ? F("ALL") : F("STATUS"));
+}
+
+void rgb_toggle_onoff() {
+  ledBrightness = (ledBrightness == 0) ? LED_BRIGHTNESS_DEFAULT : 0;
+  Serial.print(F("BRI="));
+  Serial.println(ledBrightness);
+}
+
+void rgb_update() {
+  pixels.clear();
+
+  if (ledBrightness == 0) {
+    pixels.show();
+    return;
+  }
+
+  uint8_t activeLayer = getActiveLayer();
+  uint8_t v = breatheValue();
+  uint8_t r = layerR[activeLayer];
+  uint8_t g = layerG[activeLayer];
+  uint8_t b = layerB[activeLayer];
+
+  if (ledAllMode) {
+    uint32_t color = scaledColor(r, g, b, v);
+    for (uint8_t i = 0; i < LED_COUNT; i++) {
+      pixels.setPixelColor(i, color);
+    }
+  } else {
+    uint8_t idx = layerLedIndex[activeLayer];
+    if (idx < LED_COUNT) {
+      pixels.setPixelColor(idx, scaledColor(r, g, b, v));
+    }
+  }
+
+  pixels.show();
+}
+
+
+// ============================================================
+// QMK-LIKE CORE
+// ============================================================
+bool process_record_user(uint16_t keycode, bool pressed) {
+  if (isMomentaryKey(keycode)) {
+    uint8_t layer = keycodeToLayer(keycode);
+    if (pressed) {
+      moLayer = layer;
+      Serial.print(F("MO -> "));
+      Serial.println(layer);
+    } else {
+      moLayer = -1;
+      Serial.println(F("MO OFF"));
+    }
+    return false;
+  }
+
+  if (isToggleKey(keycode)) {
+    if (pressed) {
+      uint8_t layer = keycodeToLayer(keycode);
+      tgLayerEnabled[layer] = !tgLayerEnabled[layer];
+      Serial.print(F("TG "));
+      Serial.print(layer);
+      Serial.print(F(" = "));
+      Serial.println(tgLayerEnabled[layer] ? F("ON") : F("OFF"));
+    }
+    return false;
+  }
+
+  if (!pressed) {
+    if (isMediaKey(keycode)) return true;
+
+    switch (keycode) {
+      case KC_NO:
+      case CK_COPY:
+      case CK_CUT:
+      case CK_PASTE:
+      case CK_UNDO:
+      case CK_REDO:
+      case CK_LED_DOWN:
+      case CK_LED_UP:
+      case CK_LED_MODE:
+      case CK_LED_TOGGLE:
+      case CK_TO_NAV:
+        return true;
+
+      default:
+        BootKeyboard.release((uint8_t)keycode);
+        return true;
+    }
+  }
+
+  switch (keycode) {
+    case KC_NO:
+      return false;
+
+    case CK_COPY:
+      tapCtrl(KC_C);
+      return false;
+
+    case CK_CUT:
+      tapCtrl(KC_X);
+      return false;
+
+    case CK_PASTE:
+      tapCtrl(KC_V);
+      return false;
+
+    case CK_UNDO:
+      tapCtrl(KC_Z);
+      return false;
+
+    case CK_REDO:
+      tapCtrl(KC_Y);
+      return false;
+
+    case CK_LED_DOWN:
+      rgb_brightness_down();
+      return false;
+
+    case CK_LED_UP:
+      rgb_brightness_up();
+      return false;
+
+    case CK_LED_MODE:
+      rgb_toggle_mode();
+      return false;
+
+    case CK_LED_TOGGLE:
+      rgb_toggle_onoff();
+      return false;
+
+    case CK_TO_NAV:
+      baseLayer = L_NAV;
+      moLayer = -1;
+      for (uint8_t i = 0; i < LAYER_COUNT; i++) tgLayerEnabled[i] = false;
+      Serial.println(F("BASE -> NAV"));
+      return false;
+  }
+
+  if (isMediaKey(keycode)) {
+    Consumer.write((ConsumerKeycode)keycode);
+    return false;
+  }
+
+  BootKeyboard.press((uint8_t)keycode);
+  return true;
+}
+
+
+// ============================================================
+// QMK-LIKE ENCODER
+// ============================================================
+void encoder_update_user(bool clockwise) {
+  if (encHold) {
+    uint8_t activeLayer = getActiveLayer();
+    uint8_t nextLayer = clockwise
+      ? (activeLayer + 1) % LAYER_COUNT
+      : (activeLayer + LAYER_COUNT - 1) % LAYER_COUNT;
+
+    baseLayer = nextLayer;
+    moLayer = -1;
+    for (uint8_t i = 0; i < LAYER_COUNT; i++) tgLayerEnabled[i] = false;
+
+    Serial.print(F("BASE -> "));
+    Serial.println(baseLayer);
+    return;
+  }
+
+  switch (getActiveLayer()) {
+    case L_NAV:
+      tapKey(clockwise ? KC_PGDN : KC_PGUP);
+      break;
+
+    case L_EDIT:
+      tapCtrl(clockwise ? KC_Y : KC_Z);
+      break;
+
+    case L_MEDIA:
+      Consumer.write(clockwise ? KC_VOLU : KC_VOLD);
+      break;
+
+    case L_F:
+      tapKey(clockwise ? KC_F6 : KC_F5);
+      break;
+
+    case L_SYM:
+      if (clockwise) tapKey(KC_TAB);
+      else tapShift(KC_TAB);
+      break;
+
+    case L_SYS:
+      if (clockwise) rgb_brightness_up();
+      else rgb_brightness_down();
+      break;
+  }
+}
+
+
+// ============================================================
+// MATRIX
+// ============================================================
+void matrix_select_row(uint8_t row) {
+  for (uint8_t i = 0; i < MATRIX_ROWS; i++) {
+    digitalWrite(rowPins[i], HIGH);
+  }
+  digitalWrite(rowPins[row], LOW);
+  delayMicroseconds(100);
+}
+
+bool matrix_read_col(uint8_t col) {
+  return digitalRead(colPins[col]) == LOW;
+}
+
+void matrix_init() {
+  for (uint8_t r = 0; r < MATRIX_ROWS; r++) {
+    pinMode(rowPins[r], OUTPUT);
+    digitalWrite(rowPins[r], HIGH);
+  }
+
+  for (uint8_t c = 0; c < MATRIX_COLS; c++) {
+    pinMode(colPins[c], INPUT_PULLUP);
+  }
+}
+
+void matrix_scan() {
+  uint32_t now = millis();
+
+  for (uint8_t r = 0; r < MATRIX_ROWS; r++) {
+    matrix_select_row(r);
+
+    for (uint8_t c = 0; c < MATRIX_COLS; c++) {
+      bool reading = matrix_read_col(c);
+
+      if (reading != matrixLastRead[r][c]) {
+        matrixLastRead[r][c] = reading;
+        matrixLastChange[r][c] = now;
+      }
+
+      if ((now - matrixLastChange[r][c]) >= MATRIX_DEBOUNCE_MS) {
+        if (matrixStable[r][c] != reading) {
+          matrixStable[r][c] = reading;
+
+          if (r == ENC_BTN_ROW && c == ENC_BTN_COL) {
+            encHold = reading;
+            Serial.print(F("ENC_HOLD rowPin="));
+            Serial.print(rowPins[r]);
+            Serial.print(F(" colPin="));
+            Serial.print(colPins[c]);
+            Serial.print(F(" = "));
+            Serial.println(encHold ? F("1") : F("0"));
+          } else {
+            uint8_t activeLayer = getActiveLayer();
+            uint16_t keycode = keymaps[activeLayer][r][c];
+            debugKeyEvent(reading ? F("PRESS") : F("RELEASE"), activeLayer, r, c, keycode);
+            process_record_user(keycode, reading);
+          }
+        }
+      }
+    }
+  }
+}
+
+
+// ============================================================
+// ENCODER
+// ============================================================
+uint8_t encoder_read_state() {
+  uint8_t a = digitalRead(ENC_A) ? 1 : 0;
+  uint8_t b = digitalRead(ENC_B) ? 1 : 0;
+  return (a << 1) | b;
+}
+
+void encoder_init() {
+  pinMode(ENC_A, INPUT_PULLUP);
+  pinMode(ENC_B, INPUT_PULLUP);
+  encPrevState = encoder_read_state();
+  encAccum = 0;
+}
+
+void encoder_scan() {
+  uint8_t currState = encoder_read_state();
+
+  if (currState == encPrevState) return;
+
+  uint8_t idx = (encPrevState << 2) | currState;
+  int8_t movement = encTransitionTable[idx];
+
+  if (movement != 0) {
+    encAccum += movement;
+
+    if (encAccum >= ENC_STEPS_PER_DETENT) {
+      encAccum = 0;
+      Serial.println(F("ENC CW"));
+      encoder_update_user(true);
+    } else if (encAccum <= -ENC_STEPS_PER_DETENT) {
+      encAccum = 0;
+      Serial.println(F("ENC CCW"));
+      encoder_update_user(false);
+    }
+  }
+
+  encPrevState = currState;
+}
+
+
+// ============================================================
+// SETUP
+// ============================================================
+void setup() {
+  Serial.begin(115200);
+  while (!Serial) {}
+
+  Serial.println(F("--- MINI-QMK OHROPAX PAD (MO/TG) ---"));
+
+  clampBrightness();
+
+  matrix_init();
+  encoder_init();
+
+  BootKeyboard.begin();
+  Consumer.begin();
+
+  pixels.begin();
+  pixels.clear();
+  pixels.show();
+}
+
+
+// ============================================================
+// LOOP
+// ============================================================
+void loop() {
+  encoder_scan();
+  matrix_scan();
+
+  static uint32_t lastLedUpdate = 0;
+  uint32_t now = millis();
+  if (now - lastLedUpdate >= LED_UPDATE_MS) {
+    lastLedUpdate = now;
+    rgb_update();
+  }
+}
