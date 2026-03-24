@@ -1,31 +1,63 @@
-name: Build Arduino sketch
+name: Build Ohropax.arduino
 
 on:
-  workflow_dispatch:
   push:
-    branches: ["main"]
-    paths:
-      - "**/*.ino"
-      - ".github/workflows/build.yaml"
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Compile sketch
-        uses: arduino/compile-sketches@v1
+      - name: List files in workspace
+        run: ls -lR
+
+      - name: Set up Arduino CLI
+        uses: arduino/setup-arduino-cli@v1
         with:
-          fqbn: SparkFun:avr:promicro:cpu=16MHzatmega32U4
-          platforms: |
-            - name: SparkFun:avr
-              source-url: https://raw.githubusercontent.com/sparkfun/Arduino_Boards/main/IDE_Board_Manager/package_sparkfun_index.json
-          libraries: |
-            - name: HID-Project
-            - name: Adafruit NeoPixel
-          sketch-paths: |
-            - .
+          version: "0.32.3"
+
+      - name: Initialize Arduino CLI config
+        run: arduino-cli config init
+
+      - name: Set board manager URL
+        run: arduino-cli config set board_manager.additional_urls "https://github.com/earlephilhower/arduino-pico/releases/download/global/package_rp2040_index.json"
+
+      - name: Install Adafruit_GFX library
+        run: arduino-cli lib install "Adafruit GFX Library"
+
+      - name: Install Adafruit_SSD1306 library
+        run: arduino-cli lib install "Adafruit SSD1306"
+
+      - name: Install HID-Project library
+        run: arduino-cli lib install "HID-Project"
+
+      - name: Install Adafruit_NeoPixel library
+        run: arduino-cli lib install "Adafruit NeoPixel"
+
+      - name: Update board index
+        run: arduino-cli core update-index
+
+      - name: Search for rp2040 core
+        run: arduino-cli core search rp2040
+
+      - name: Install rp2040 platform
+        run: arduino-cli core install rp2040:rp2040
+
+      - name: Build working_hardware_modified.ino
+        run: |
+          arduino-cli compile \
+            --fqbn rp2040:rp2040:waveshare_rp2040_zero \
+            --output-dir "Ohropax_Arduinodroid/build" \
+            "./9key_makro_master.arduino.ide.ino"
+
+      - name: Upload firmware artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rp2040zero-firmware
+          path: Ohropax_Arduinodroid/build/*.uf2
