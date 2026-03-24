@@ -54,7 +54,7 @@ jobs:
           arduino-cli compile \
             --fqbn rp2040:rp2040:waveshare_rp2040_zero \
             --output-dir "Ohropax_Arduinodroid/build" \
-            "./9key_makro_master.arduino.ide.ino"
+            "./Ohropax_Arduinodroid.ino"
 
       - name: Upload firmware artifact
         uses: actions/upload-artifact@v4
