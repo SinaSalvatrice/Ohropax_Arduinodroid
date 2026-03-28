@@ -11,13 +11,13 @@ const uint8_t COLS = 3;
 
 // ROW2COL scan: Rows OUTPUT (active HIGH), Cols INPUT (external pull-down)
 // Du sagst: ENC-BTN ist Matrix (r=0,c=2) und hängt an A0 -> colPins[2] = A0
-const uint8_t rowPins[ROWS] = {2, 3};
-const uint8_t colPins[COLS] = {4, 5, 6};   // (0,2)=A0
+const uint8_t rowPins[ROWS] = {4, 5};
+const uint8_t colPins[COLS] = {6, 7, 8};   // (0,2)=A0
 
 // Encoder Pins: NICHT 14/15 nehmen, wenn A0/A1 schon Matrix sind (Kollision).
 // Nimm echte Digitalpins passend zu deiner Verdrahtung:
-const uint8_t ENC_A = 14;   // <--- anpassen
-const uint8_t ENC_B = 15;   // <--- anpassen
+const uint8_t ENC_A = 9;   // <--- anpassen
+const uint8_t ENC_B = 10;   // <--- anpassen
 
 // Encoder-Button sitzt IN DER MATRIX:
 const uint8_t ENC_BTN_R = 0;
