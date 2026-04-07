@@ -26,7 +26,7 @@ jobs:
         run: arduino-cli config init
 
       - name: Set board manager URL
-        run: arduino-cli config set board_manager.additional_urls "https://github.com/earlephilhower/arduino-pico/releases/download/global/package_rp2040_index.json"
+        run: arduino-cli config set board_manager.additional_urls "https://raw.githubusercontent.com/sparkfun/Arduino_Boards/master/IDE_Board_Manager/package_sparkfun_index.json"
 
       - name: Install Adafruit_GFX library
         run: arduino-cli lib install "Adafruit GFX Library"
@@ -40,21 +40,21 @@ jobs:
       - name: Update board index
         run: arduino-cli core update-index
 
-      - name: Search for rp2040 core
-        run: arduino-cli core search rp2040
+      - name: Search for SparkFun AVR core
+        run: arduino-cli core search SparkFun
 
-      - name: Install rp2040 platform
-        run: arduino-cli core install rp2040:rp2040
+      - name: Install SparkFun AVR platform
+        run: arduino-cli core install SparkFun:avr
 
       - name: Build working_hardware_modified.ino
         run: |
           arduino-cli compile \
-            --fqbn rp2040:rp2040:waveshare_rp2040_zero \
+            --fqbn SparkFun:avr:promicro5V16MHz \
             --output-dir "Ohropax_Arduinodroid/build" \
             "./Ohropax_Arduinodroid.ino"
 
       - name: Upload firmware artifact
         uses: actions/upload-artifact@v4
         with:
-          name: rp2040zero-firmware
-          path: Ohropax_Arduinodroid/build/*.uf2
+          name: promicro-firmware
+          path: Ohropax_Arduinodroid/build/*.hex
