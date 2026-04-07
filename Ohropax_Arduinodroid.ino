@@ -1,5 +1,5 @@
 #include <Arduino.h>
-#include <HID-Project.h>
+#include <Keyboard.h>
 #include <Adafruit_NeoPixel.h>
 #include <math.h>
 
@@ -68,22 +68,22 @@ int8_t encAcc = 0;
 // KEYMAP
 // =====================
 #if ENABLE_HID
-const KeyboardKeycode keymap[LAYERS][ROWS][COLS] = {
+const uint8_t keymap[LAYERS][ROWS][COLS] = {
   // L0
-  { { KEY_A, KEY_B, KEY_C }, { KEY_D, KEY_E, KEY_F } },
+  { { 'a', 'b', 'c' }, { 'd', 'e', 'f' } },
   // L1
-  { { KEY_1, KEY_2, KEY_3 }, { KEY_4, KEY_5, KEY_6 } },
+  { { '1', '2', '3' }, { '4', '5', '6' } },
   // L2
   { { KEY_LEFT_ARROW, KEY_UP_ARROW,   KEY_RIGHT_ARROW },
-    { KEY_DOWN_ARROW, KEY_ENTER,      KEY_ESC } },
+    { KEY_DOWN_ARROW, KEY_RETURN,      KEY_ESC } },
   // L3
   { { KEY_F1, KEY_F2, KEY_F3 }, { KEY_F4, KEY_F5, KEY_F6 } },
   // L4
   { { KEY_HOME, KEY_PAGE_UP, KEY_END },
     { KEY_PAGE_DOWN, KEY_BACKSPACE, KEY_TAB } },
   // L5
-  { { KEY_MINUS, KEY_EQUAL, KEY_LEFT_BRACE },
-    { KEY_RIGHT_BRACE, KEY_BACKSLASH, KEY_SPACE } }
+  { { '-', '=', '[' },
+    { ']', '\\', ' ' } }
 };
 #endif
 
@@ -260,7 +260,7 @@ void setup() {
   encoderInit();
 
 #if ENABLE_HID
-  BootKeyboard.begin();
+  Keyboard.begin();
 #endif
 
   pixels.begin();
@@ -328,9 +328,9 @@ void loop() {
             Serial.print(F(" c=")); Serial.println(c);
 
 #if ENABLE_HID
-            KeyboardKeycode kc = keymap[currentLayer][r][c];
-            if (stableState[r][c]) BootKeyboard.press(kc);
-            else                   BootKeyboard.release(kc);
+            uint8_t kc = keymap[currentLayer][r][c];
+            if (stableState[r][c]) Keyboard.press(kc);
+            else                   Keyboard.release(kc);
 #endif
           }
         }
